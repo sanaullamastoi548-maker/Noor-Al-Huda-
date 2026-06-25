@@ -1541,18 +1541,48 @@
     <!-- ============================================================
     FATWA
     ============================================================ -->
-    <section class="fatwa-section" id="fatwa">
-        <div class="container">
-            <h2 class="section-title text-center" data-key="fatwa.title">⚖️ Darul Ifta — Fatwa Center</h2>
-            <p class="text-center section-subtitle" data-key="fatwa.subtitle">Guidance on Islamic rulings for everyday life</p>
-            <div class="fatwa-grid" id="fatwaGrid">
-                <!-- Populated by JS -->
-            </div>
-            <div class="fatwa-submit">
-                <button class="btn btn-primary" data-key="fatwa.submit_btn">📩 Submit Your Question</button>
-            </div>
+    <!-- ===== FATWA ===== -->
+<section class="fatwa-section" id="fatwa">
+    <div class="container">
+        <h2 class="section-title text-center" data-key="fatwa.title">⚖️ دارالافتاء — فتویٰ مرکز</h2>
+        <p class="text-center section-subtitle" data-key="fatwa.subtitle">روزمرہ کی زندگی کے لیے اسلامی رہنمائی</p>
+        <div class="fatwa-grid" id="fatwaGrid">
+            <!-- یہاں زمرہ جات JavaScript سے بنیں گے -->
         </div>
-    </section>
+        <div class="fatwa-submit" style="margin-top:30px; text-align:center;">
+            <button class="btn btn-primary" id="openQuestionModal" data-key="fatwa.submit_btn">📩 اپنا سوال جمع کروائیں</button>
+        </div>
+    </div>
+</section>
+
+<!-- ===== سوال جمع کرنے کا موڈل ===== -->
+<div id="questionModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:9999; justify-content:center; align-items:center; padding:20px;">
+    <div style="background:#fff; max-width:500px; width:100%; padding:30px; border-radius:var(--radius); box-shadow:var(--shadow-lg); position:relative;">
+        <button id="closeQuestionModal" style="position:absolute; top:12px; left:16px; background:none; border:none; font-size:1.8rem; cursor:pointer; color:#999;">✕</button>
+        <h3 style="color:var(--primary); margin-bottom:16px;">📩 اپنا سوال لکھیں</h3>
+        <form id="questionForm">
+            <label style="display:block; margin-top:10px; font-weight:600;">آپ کا نام</label>
+            <input type="text" id="qName" placeholder="مثال: احمد" required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px;">
+            <label style="display:block; margin-top:10px; font-weight:600;">ای میل (اختیاری)</label>
+            <input type="email" id="qEmail" placeholder="example@email.com" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:10px;">
+            <label style="display:block; margin-top:10px; font-weight:600;">سوال یا پیغام</label>
+            <textarea id="qMessage" rows="5" placeholder="اپنا سوال تفصیل سے لکھیں..." required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:16px;"></textarea>
+            <button type="submit" class="btn btn-primary" style="width:100%;">📨 بھیجیں</button>
+        </form>
+        <div id="questionStatus" style="margin-top:12px; text-align:center; font-weight:600;"></div>
+    </div>
+</div>
+
+<!-- ===== ایڈمن کے لیے پیغامات دیکھنے کا بٹن (صرف لاگ ان پر) ===== -->
+<div style="text-align:center; margin-top:20px;">
+    <button id="viewMessagesBtn" class="btn btn-outline" style="display:none;">📬 پیغامات دیکھیں</button>
+</div>
+
+<!-- ===== پیغامات کی فہرست (چھپی ہوئی) ===== -->
+<div id="messagesList" style="display:none; max-width:700px; margin:20px auto; background:#fff; padding:20px; border-radius:var(--radius); box-shadow:var(--shadow-sm);">
+    <h4 style="color:var(--primary);">📬 موصولہ پیغامات</h4>
+    <div id="messagesContainer"></div>
+</div>
 
     <!-- ============================================================
     ISLAMIC TOOLS
@@ -2363,19 +2393,159 @@
         /* ================================================================
            SECTION: FATWA DATA
            ================================================================ */
-        const fatwaData = [
-            'Aqeedah (Creed)', 'Salah (Prayer)', 'Fasting', 'Zakat', 'Hajj',
-            'Nikah (Marriage)', 'Talaq (Divorce)', 'Business', 'Modern Issues'
-        ];
+        // ===== فتویٰ سوالات کا نظام (نئے) =====
+(function() {
+    const modal = document.getElementById('questionModal');
+    const openBtn = document.getElementById('openQuestionModal');
+    const closeBtn = document.getElementById('closeQuestionModal');
+    const form = document.getElementById('questionForm');
+    const status = document.getElementById('questionStatus');
+    const viewBtn = document.getElementById('viewMessagesBtn');
+    const messagesList = document.getElementById('messagesList');
+    const messagesContainer = document.getElementById('messagesContainer');
 
-        function renderFatwa() {
-            const grid = document.getElementById('fatwaGrid');
-            if (!grid) return;
-            grid.innerHTML = fatwaData.map(f => `
-                    <div class="fatwa-tag">${f}</div>
-                `).join('');
+    // ذخیرہ شدہ پیغامات
+    const MESSAGES_KEY = 'noor_messages';
+
+    function getMessages() {
+        try {
+            return JSON.parse(localStorage.getItem(MESSAGES_KEY)) || [];
+        } catch { return []; }
+    }
+
+    function saveMessages(messages) {
+        localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+    }
+
+    // موڈل کھولیں
+    if (openBtn) {
+        openBtn.addEventListener('click', function() {
+            modal.style.display = 'flex';
+            status.textContent = '';
+            form.reset();
+        });
+    }
+
+    // موڈل بند کریں
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+    }
+    // باہر کلک کرنے پر بند
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.style.display = 'none';
         }
-        renderFatwa();
+    });
+
+    // فارم جمع کروائیں
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('qName').value.trim();
+            const email = document.getElementById('qEmail').value.trim();
+            const message = document.getElementById('qMessage').value.trim();
+
+            if (!name || !message) {
+                status.innerHTML = '⚠️ براہ کرم نام اور سوال ضرور لکھیں۔';
+                status.style.color = 'red';
+                return;
+            }
+
+            const newMsg = {
+                id: Date.now(),
+                name: name,
+                email: email || 'N/A',
+                message: message,
+                date: new Date().toISOString()
+            };
+
+            const msgs = getMessages();
+            msgs.unshift(newMsg);
+            saveMessages(msgs);
+
+            status.innerHTML = '✅ آپ کا سوال بھیج دیا گیا! شکریہ۔';
+            status.style.color = 'green';
+            form.reset();
+
+            // ۳ سیکنڈ بعد موڈل بند
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 2000);
+        });
+    }
+
+    // === ایڈمن: پیغامات دیکھیں (صرف لاگ ان پر) ===
+    // یہ چیک کرے گا کہ کیا ایڈمن لاگ ان ہے (ہمارے پچھلے ٹول کا استعمال)
+    function checkAdminLogin() {
+        // ہم پچھلے ٹول کے sessionStorage کو چیک کریں گے
+        const logged = sessionStorage.getItem('admin_logged');
+        if (logged === 'true') {
+            viewBtn.style.display = 'inline-block';
+        } else {
+            viewBtn.style.display = 'none';
+            messagesList.style.display = 'none';
+        }
+    }
+
+    // پہلے چیک کریں
+    checkAdminLogin();
+
+    // جب بھی ایڈمن لاگ ان ہو، ہم اسے اپ ڈیٹ کر سکتے ہیں۔
+    // ہم ایک انٹروال بھی لگا سکتے ہیں، لیکن ہم صرف ایک بار چیک کریں گے۔
+    // اگر پاس ورڈ تبدیل ہو تو بھی کام کرے گا۔
+
+    if (viewBtn) {
+        viewBtn.addEventListener('click', function() {
+            const msgs = getMessages();
+            if (msgs.length === 0) {
+                messagesContainer.innerHTML = '<p style="opacity:0.6;">📭 ابھی کوئی پیغام نہیں۔</p>';
+            } else {
+                messagesContainer.innerHTML = msgs.map(m => `
+                    <div style="border-bottom:1px solid #eee; padding:12px 0;">
+                        <div><strong>${m.name}</strong> (${m.email})</div>
+                        <div style="font-size:0.9rem; margin:4px 0;">${m.message}</div>
+                        <div style="font-size:0.7rem; color:#999;">${new Date(m.date).toLocaleString()}</div>
+                        <button class="delete-msg" data-id="${m.id}" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:0.8rem;">🗑️ حذف کریں</button>
+                    </div>
+                `).join('');
+                // ڈیلیٹ بٹن
+                document.querySelectorAll('.delete-msg').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = parseInt(this.dataset.id);
+                        let msgs = getMessages();
+                        msgs = msgs.filter(m => m.id !== id);
+                        saveMessages(msgs);
+                        // دوبارہ لوڈ کریں
+                        viewBtn.click();
+                    });
+                });
+            }
+            // ڈسپلے ٹوگل کریں
+            if (messagesList.style.display === 'block') {
+                messagesList.style.display = 'none';
+            } else {
+                messagesList.style.display = 'block';
+            }
+        });
+    }
+
+    // جب ایڈمن لاگ ان ہو تو viewBtn دکھائیں (ہم وقتاً فوقتاً چیک کر سکتے ہیں)
+    // ہم ایک سیٹ انٹروال لگا سکتے ہیں، لیکن اس سے بچنے کے لیے ہم صرف ایک بار چیک کریں گے۔
+    // اگر کوئی لاگ ان کرتا ہے تو وہ پیج ریفریش کرے گا، اس لیے یہ کافی ہے۔
+
+    // مزید: جب موڈل بند ہو تو status صاف کریں
+    // (اوپر پہلے سے موجود ہے)
+
+    // ===== زمرہ جات (فتویٰ) JavaScript سے بنا دیں =====
+    const fatwaData = ['عقیدہ', 'نماز', 'روزہ', 'زکوٰۃ', 'حج', 'نکاح', 'طلاق', 'تجارت', 'جدید مسائل'];
+    const grid = document.getElementById('fatwaGrid');
+    if (grid) {
+        grid.innerHTML = fatwaData.map(f => `<div class="fatwa-tag">${f}</div>`).join('');
+    }
+
+})();
 
         /* ================================================================
            SECTION: ARTICLES DATA

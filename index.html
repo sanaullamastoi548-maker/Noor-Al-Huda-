@@ -2425,6 +2425,45 @@
             }
         });
 
+        <!-- ============================================================
+     نیا ٹول: مواد لکھیں + پاس ورڈ + کاپی/شیئر
+     ============================================================ -->
+<section class="tools-section" id="myTool" style="background:var(--cream); padding:60px 0;">
+    <div class="container">
+        <h2 class="section-title text-center">📝 مواد لکھیں اور شیئر کریں</h2>
+        <p class="text-center section-subtitle">صرف مالک مواد شامل کر سکتا ہے۔ دوسرے صرف دیکھ سکتے ہیں۔</p>
+
+        <div id="displayArea" style="max-width:800px; margin:0 auto 30px;"></div>
+
+        <div style="text-align:center; margin-bottom:20px;">
+            <button id="adminToggleBtn" class="btn btn-primary" style="background:var(--gold);color:#000;">🔐 ایڈمن موڈ</button>
+        </div>
+
+        <div id="adminPanelTool" style="display:none; max-width:600px; margin:0 auto; background:#fff; padding:30px; border-radius:var(--radius); box-shadow:var(--shadow-md);">
+            <h3 style="color:var(--primary);">✍️ نیا مواد شامل کریں</h3>
+            <div id="loginForm">
+                <label>پاس ورڈ</label>
+                <input type="password" id="passInput" placeholder="پاس ورڈ درج کریں" style="width:100%; padding:10px; margin:10px 0; border-radius:8px; border:1px solid #ddd;">
+                <button id="loginBtnTool" class="btn btn-primary" style="width:100%;">لاگ ان</button>
+                <p style="font-size:0.8rem; opacity:0.6; margin-top:8px;">ڈیفالٹ: admin123</p>
+            </div>
+            <div id="addForm" style="display:none;">
+                <label>عنوان</label>
+                <input type="text" id="postTitleTool" placeholder="عنوان لکھیں" style="width:100%; padding:10px; margin:10px 0; border-radius:8px; border:1px solid #ddd;">
+                <label>مواد (تفصیل)</label>
+                <textarea id="postContentTool" rows="5" placeholder="اپنا اسلامی مواد یہاں لکھیں..." style="width:100%; padding:10px; margin:10px 0; border-radius:8px; border:1px solid #ddd;"></textarea>
+                <button id="addPostBtn" class="btn btn-primary" style="width:100%;">➕ شامل کریں</button>
+                <button id="logoutTool" class="btn btn-outline" style="width:100%; margin-top:10px;">🚪 لاگ آؤٹ</button>
+            </div>
+        </div>
+
+        <div id="postActions" style="display:none; text-align:center; margin-top:20px;">
+            <button id="copyBtn" class="btn btn-small" style="background:var(--gold);color:#000;">📋 کاپی کریں</button>
+            <button id="shareBtn" class="btn btn-small" style="background:var(--primary);color:#fff;">🔗 شیئر کریں</button>
+        </div>
+    </div>
+</section>
+
         /* ================================================================
            SEARCH SYSTEM (same as before)
            ================================================================ */
@@ -2938,6 +2977,162 @@
         console.log('🌙 Noor Al-Huda v3.0 — Full CMS + Admin Panel + Interactive Tools');
         console.log('🔐 Admin password: ' + localStorage.getItem(ADMIN_PASSWORD_KEY));
         console.log('📌 Use the lock icon (🔐) in header to access admin panel.');
+        // ===== نیا ٹول: مواد + پاس ورڈ + کاپی/شیئر =====
+(function() {
+    const STORED_PASS = localStorage.getItem('myToolPass') || 'admin123';
+    if (!localStorage.getItem('myToolPass')) {
+        localStorage.setItem('myToolPass', 'admin123');
+    }
+    const POSTS_KEY = 'myToolPosts';
+
+    function getPosts() {
+        try {
+            return JSON.parse(localStorage.getItem(POSTS_KEY)) || [];
+        } catch { return []; }
+    }
+
+    function savePosts(posts) {
+        localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    }
+
+    function addPost(title, content) {
+        const posts = getPosts();
+        const newPost = {
+            id: Date.now(),
+            title: title.trim(),
+            content: content.trim(),
+            date: new Date().toISOString()
+        };
+        posts.unshift(newPost);
+        savePosts(posts);
+        renderPosts();
+    }
+
+    function renderPosts() {
+        const posts = getPosts();
+        const display = document.getElementById('displayArea');
+        const actions = document.getElementById('postActions');
+        if (posts.length === 0) {
+            display.innerHTML = `<p style="text-align:center; opacity:0.6; padding:20px;">📭 ابھی کوئی مواد نہیں۔ ایڈمن شامل کر سکتا ہے۔</p>`;
+            if (actions) actions.style.display = 'none';
+            return;
+        }
+        const latest = posts[0];
+        display.innerHTML = `
+            <div style="background:#fff; padding:25px; border-radius:var(--radius); box-shadow:var(--shadow-sm); border-right:5px solid var(--gold);">
+                <h3 style="color:var(--primary); margin-bottom:10px;">${latest.title}</h3>
+                <div style="font-size:1rem; line-height:1.8; white-space:pre-wrap; word-wrap:break-word;">${latest.content}</div>
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-top:12px;">📅 ${new Date(latest.date).toLocaleDateString()}</div>
+            </div>
+        `;
+        if (actions) actions.style.display = 'block';
+        const copyBtn = document.getElementById('copyBtn');
+        const shareBtn = document.getElementById('shareBtn');
+        if (copyBtn) {
+            copyBtn.onclick = function() {
+                const text = latest.content;
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('✅ مواد کاپی ہو گیا!');
+                }).catch(() => {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    alert('✅ مواد کاپی ہو گیا!');
+                });
+            };
+        }
+        if (shareBtn) {
+            shareBtn.onclick = function() {
+                const title = latest.title;
+                const text = latest.content;
+                if (navigator.share) {
+                    navigator.share({ title: title, text: text }).catch(() => {});
+                } else {
+                    const url = window.location.href;
+                    navigator.clipboard.writeText(url + '?post=' + latest.id).then(() => {
+                        alert('🔗 لنک کاپی ہو گیا!');
+                    });
+                }
+            };
+        }
+    }
+
+    const adminToggleBtn = document.getElementById('adminToggleBtn');
+    const adminPanel = document.getElementById('adminPanelTool');
+    const loginForm = document.getElementById('loginForm');
+    const addForm = document.getElementById('addForm');
+    const passInput = document.getElementById('passInput');
+    const loginBtn = document.getElementById('loginBtnTool');
+    const logoutBtn = document.getElementById('logoutTool');
+    const addPostBtn = document.getElementById('addPostBtn');
+    const titleInput = document.getElementById('postTitleTool');
+    const contentInput = document.getElementById('postContentTool');
+    let loggedIn = false;
+
+    if (adminToggleBtn) {
+        adminToggleBtn.addEventListener('click', function() {
+            if (adminPanel.style.display === 'block') {
+                adminPanel.style.display = 'none';
+            } else {
+                adminPanel.style.display = 'block';
+                if (!loggedIn) {
+                    loginForm.style.display = 'block';
+                    addForm.style.display = 'none';
+                } else {
+                    loginForm.style.display = 'none';
+                    addForm.style.display = 'block';
+                }
+            }
+        });
+    }
+
+    if (loginBtn) {
+        loginBtn.addEventListener('click', function() {
+            const pass = passInput.value;
+            const stored = localStorage.getItem('myToolPass');
+            if (pass === stored) {
+                loggedIn = true;
+                loginForm.style.display = 'none';
+                addForm.style.display = 'block';
+                passInput.value = '';
+            } else {
+                alert('❌ غلط پاس ورڈ!');
+            }
+        });
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            loggedIn = false;
+            loginForm.style.display = 'block';
+            addForm.style.display = 'none';
+            adminPanel.style.display = 'none';
+            alert('🔒 لاگ آؤٹ ہو گئے۔');
+        });
+    }
+
+    if (addPostBtn) {
+        addPostBtn.addEventListener('click', function() {
+            const title = titleInput.value.trim();
+            const content = contentInput.value.trim();
+            if (!title || !content) {
+                alert('براہ کرم عنوان اور مواد دونوں لکھیں۔');
+                return;
+            }
+            addPost(title, content);
+            titleInput.value = '';
+            contentInput.value = '';
+            alert('✅ مواد شامل ہو گیا!');
+            adminPanel.style.display = 'none';
+        });
+    }
+
+    renderPosts();
+    console.log('🔐 اس ٹول کا پاس ورڈ: ' + localStorage.getItem('myToolPass'));
+})();
     </script>
 </body>
 </html>

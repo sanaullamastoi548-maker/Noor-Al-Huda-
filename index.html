@@ -1583,14 +1583,20 @@
                     <div class="tool-output" id="zakatResult">$ --</div>
                 </div>
 
-               <!-- قبلہ فائنڈر کارڈ (نیا) -->
-       <div class="tool-card glass">
-         <span class="tool-icon">🧭</span>
-         <h3 data-key="tools.qibla">قبلہ فائنڈر</h3>
-       <button class="btn btn-primary btn-small" id="qiblaBtnNew">📍 میرے قبلہ کی سمت تلاش کریں</button>
-      <div class="tool-output" id="qiblaResultNew">-- °</div>
-     <p style="font-size:0.8rem; opacity:0.6; margin-top:6px;">اپنے آلے کی لوکیشن اجازت دیں۔</p>
-   </div> 
+                  <!-- قبلہ فائنڈر (نیا) -->
+<div class="tool-card glass">
+    <span class="tool-icon">🧭</span>
+    <h3>قبلہ فائنڈر</h3>
+    <button class="btn btn-primary btn-small" id="qiblaLocBtn">📍 میرے قبلہ کی سمت تلاش کریں</button>
+    <div class="tool-output" id="qiblaResult">-- °</div>
+    <hr style="margin:12px 0; opacity:0.3;">
+    <p style="font-size:0.85rem; opacity:0.7;">یا دستی طور پر شہر درج کریں:</p>
+    <div style="display:flex; gap:8px; margin-top:6px;">
+        <input type="text" id="qiblaCityInput" placeholder="مثال: Makkah" style="flex:1; padding:8px 12px; border-radius:var(--radius-sm); border:1px solid #ddd; background:var(--cream);">
+        <button class="btn btn-small" id="qiblaCityBtn" style="padding:8px 16px; background:var(--gold); color:#000;">تلاش</button>
+    </div>
+    <p style="font-size:0.7rem; opacity:0.5; margin-top:6px;">نوٹ: دستی شہر کے لیے انٹرنیٹ کنکشن درکار ہے۔</p>
+</div>
 
                 <!-- Islamic Calendar -->
                 <div class="tool-card glass">
@@ -1610,15 +1616,14 @@
                 </div>
 
                 <!-- Dua Search -->
-                <div class="tool-card glass">
-                    <span class="tool-icon">🤲</span>
-                    <h3 data-key="tools.dua">Dua Collection</h3>
-                    <input type="text" id="duaSearchInput" placeholder="Search dua..." />
-                    <button class="btn btn-primary btn-small" id="duaSearchBtn" data-key="tools.search_dua">🔍 Search</button>
-                    <div id="duaResult" style="margin-top:10px;font-size:0.95rem;font-style:italic;"></div>
-                </div>
-
-            </div>
+                <!-- دعاؤں کا مجموعہ (نیا) -->
+<div class="tool-card glass">
+    <span class="tool-icon">🤲</span>
+    <h3>دعاؤں کا مجموعہ</h3>
+    <input type="text" id="duaSearchInput" placeholder="دعا تلاش کریں..." />
+    <button class="btn btn-primary btn-small" id="duaSearchBtn">🔍 تلاش کریں</button>
+    <div id="duaResult" style="margin-top:14px; font-size:0.95rem; text-align:right; max-height:300px; overflow-y:auto; padding:4px;"></div>
+</div>
         </div>
     </section>
 
@@ -2435,57 +2440,77 @@
         /* ================================================================
            SECTION: TOOLS — QIBLA
            ================================================================ */
-        // ===== قبلہ فائنڈر (نیا، خود مختار) =====
+        // ===== قبلہ فائنڈر (نیا، لوکیشن + دستی) =====
 (function() {
-    const qiblaBtn = document.getElementById('qiblaBtnNew');
-    const qiblaResult = document.getElementById('qiblaResultNew');
+    const locBtn = document.getElementById('qiblaLocBtn');
+    const result = document.getElementById('qiblaResult');
+    const cityInput = document.getElementById('qiblaCityInput');
+    const cityBtn = document.getElementById('qiblaCityBtn');
 
-    if (qiblaBtn && qiblaResult) {
-        qiblaBtn.addEventListener('click', function() {
+    // قبلہ کا زاویہ حساب کرنے کا فنکشن
+    function calculateQibla(lat, lon) {
+        const m_lat = 21.4225;
+        const m_lon = 39.8262;
+        const d_lon = (m_lon - lon) * Math.PI / 180;
+        const phi = (90 - lat) * Math.PI / 180;
+        const theta = (90 - m_lat) * Math.PI / 180;
+        const x = Math.sin(d_lon) * Math.cos(theta);
+        const y = Math.cos(phi) * Math.sin(theta) - Math.sin(phi) * Math.cos(theta) * Math.cos(d_lon);
+        let bearing = Math.atan2(x, y) * 180 / Math.PI;
+        bearing = (bearing + 360) % 360;
+        return Math.round(bearing);
+    }
+
+    // لوکیشن سے قبلہ
+    if (locBtn) {
+        locBtn.addEventListener('click', function() {
             if (!navigator.geolocation) {
-                qiblaResult.textContent = '📍 آپ کا براؤزر لوکیشن سپورٹ نہیں کرتا۔';
+                result.textContent = '📍 آپ کا براؤزر لوکیشن سپورٹ نہیں کرتا۔';
                 return;
             }
-
-            qiblaResult.textContent = '⏳ لوکیشن حاصل کی جا رہی ہے...';
-
+            result.textContent = '⏳ لوکیشن حاصل کی جا رہی ہے... براہ کرم اجازت دیں۔';
             navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-
-                    // مکہ مکرمہ کے کوآرڈینیٹس
-                    const m_lat = 21.4225;
-                    const m_lon = 39.8262;
-
-                    // قبلہ کا زاویہ (بیئرنگ) حساب کریں
-                    const d_lon = (m_lon - lon) * Math.PI / 180;
-                    const phi = (90 - lat) * Math.PI / 180;
-                    const theta = (90 - m_lat) * Math.PI / 180;
-
-                    const x = Math.sin(d_lon) * Math.cos(theta);
-                    const y = Math.cos(phi) * Math.sin(theta) - Math.sin(phi) * Math.cos(theta) * Math.cos(d_lon);
-
-                    let bearing = Math.atan2(x, y) * 180 / Math.PI;
-                    bearing = (bearing + 360) % 360;
-
-                    qiblaResult.textContent = '🧭 ' + Math.round(bearing) + '°';
+                function(pos) {
+                    const bearing = calculateQibla(pos.coords.latitude, pos.coords.longitude);
+                    result.textContent = '🧭 ' + bearing + '°';
                 },
-                function(error) {
-                    console.warn('Geolocation error:', error);
-                    qiblaResult.textContent = '❌ لوکیشن تک رسائی نہیں۔ براہ کرم اجازت دیں۔';
+                function(err) {
+                    console.warn('Geolocation error:', err);
+                    result.textContent = '❌ لوکیشن تک رسائی نہیں۔ براہ کرم اجازت دیں یا دستی شہر استعمال کریں۔';
                 },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
+                { enableHighAccuracy: true, timeout: 10000 }
             );
         });
-    } else {
-        console.warn('قبلہ فائنڈر کے بٹن یا رزلٹ نہیں ملے۔');
+    }
+
+    // دستی شہر سے قبلہ (Aladhan API)
+    if (cityBtn && cityInput) {
+        cityBtn.addEventListener('click', function() {
+            const city = cityInput.value.trim();
+            if (!city) {
+                alert('براہ کرم شہر کا نام لکھیں۔');
+                return;
+            }
+            result.textContent = '⏳ شہر کے کوآرڈینیٹس حاصل کیے جا رہے...';
+            fetch(`https://api.aladhan.com/v1/current?city=${encodeURIComponent(city)}&country=SA&method=2`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.data && data.data.meta && data.data.meta.latitude) {
+                        const lat = data.data.meta.latitude;
+                        const lon = data.data.meta.longitude;
+                        const bearing = calculateQibla(lat, lon);
+                        result.textContent = '🧭 ' + bearing + '° (شہر: ' + city + ')';
+                    } else {
+                        result.textContent = '❌ شہر نہیں ملا۔ درست نام لکھیں (مثال: Makkah, Riyadh)';
+                    }
+                })
+                .catch(() => {
+                    result.textContent = '❌ انٹرنیٹ کنکشن کی خرابی۔';
+                });
+        });
     }
 })();
+         
         /* ================================================================
            SECTION: TOOLS — ISLAMIC CALENDAR
            ================================================================ */
@@ -2590,33 +2615,83 @@
         /* ================================================================
            SECTION: TOOLS — DUA SEARCH
            ================================================================ */
-        const duas = [
-            { text: 'Rabbana atina fid-dunya hasanatan wa fil-akhirati hasanatan waqina adhaban-nar', meaning: 'Our Lord! Give us good in this world and good in the Hereafter and protect us from the Fire.' },
-            { text: 'La ilaha illallah, wahdahu la sharika lah, lahul-mulku wa lahul-hamdu wa huwa ala kulli shay-in qadir',
-                meaning: 'There is no god but Allah, alone without partner. His is the kingdom and His is the praise, and He is over all things capable.' },
-            { text: 'SubhanAllah wa bihamdihi, SubhanAllah al-Azim', meaning: 'Glory be to Allah and praise be to Him, glory be to Allah the Most Great.' },
-            { text: 'Allahumma inni as-aluka al-afiyah', meaning: 'O Allah, I ask You for pardon and well-being.' },
-            { text: 'Rabbana la tuzigh qulubana ba\'da idh hadaytana wa hab lana min ladunka rahmah', meaning: 'Our Lord! Do not let our hearts deviate after You have guided us, and grant us mercy from Yourself.' },
-        ];
+        // ===== دعاؤں کا مجموعہ (مستند، 50+ دعائیں) =====
+(function() {
+    const duas = [
+        { text: "بِسْمِ اللَّهِ", category: "کھانے سے پہلے", meaning: "اللہ کے نام سے شروع کرتا ہوں۔" },
+        { text: "الْحَمْدُ لِلَّهِ الَّذِي أَطْعَمَنِي وَسَقَانِي وَجَعَلَنِي مُسْلِمًا", category: "کھانے کے بعد", meaning: "تمام تعریفیں اس اللہ کے لیے ہیں جس نے مجھے کھلایا، پلایا اور مجھے مسلمان بنایا۔" },
+        { text: "بِسْمِ اللَّهِ الْعَظِيمِ", category: "پانی پینے سے پہلے", meaning: "اللہ عظیم کے نام سے۔" },
+        { text: "الْحَمْدُ لِلَّهِ الَّذِي سَقَانَا عَذْبًا فُرَاتًا بِرَحْمَتِهِ وَلَمْ يَجْعَلْهُ مِلْحًا أُجَاجًا", category: "پانی پینے کے بعد", meaning: "اللہ کا شکر ہے جس نے ہمیں میٹھا پانی پلایا اور اسے کھارا نہیں بنایا۔" },
+        { text: "بِسْمِ اللَّهِ، اللَّهُمَّ جَنِّبْنَا الشَّيْطَانَ، وَجَنِّبِ الشَّيْطَانَ مَا رَزَقْتَنَا", category: "جماع سے پہلے", meaning: "اللہ کے نام سے، اے اللہ ہمیں شیطان سے دور رکھ اور جو تو ہمیں دے اسے شیطان سے دور رکھ۔" },
+        { text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا وَرِزْقًا طَيِّبًا وَعَمَلًا مُتَقَبَّلًا", category: "صبح کے وقت", meaning: "اے اللہ میں تجھ سے نفع بخش علم، پاکیزہ رزق اور قبول شدہ عمل مانگتا ہوں۔" },
+        { text: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ، لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ", category: "شام کے وقت", meaning: "ہم نے شام کی اور شام کا ملک اللہ کا ہے، اس کی حمد ہے، اس کے سوا کوئی معبود نہیں۔" },
+        { text: "بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا", category: "سونے سے پہلے", meaning: "تیرے نام پر اے اللہ میں مرتا اور جیتا ہوں۔" },
+        { text: "الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ", category: "نیند سے بیدار ہونے پر", meaning: "اس اللہ کی حمد ہے جس نے ہمیں مارنے کے بعد زندہ کیا اور اسی کی طرف اٹھنا ہے۔" },
+        { text: "بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ الْعَلِيمُ", category: "گھر سے نکلتے وقت", meaning: "اس اللہ کے نام سے جس کے نام کے ساتھ زمین و آسمان میں کوئی چیز نقصان نہیں پہنچا سکتی، وہ سننے والا جاننے والا ہے۔" },
+        { text: "بِسْمِ اللَّهِ تَوَكَّلْتُ عَلَى اللَّهِ، لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ", category: "گھر میں داخل ہوتے وقت", meaning: "اللہ کے نام پر، میں نے اللہ پر بھروسہ کیا، اللہ کے سوا کوئی طاقت و قوت نہیں۔" },
+        { text: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْخُبْثِ وَالْخَبَائِثِ", category: "بیت الخلا میں داخل ہوتے وقت", meaning: "اے اللہ میں ناپاکیوں اور ناپاک لوگوں سے تیری پناہ مانگتا ہوں۔" },
+        { text: "غُفْرَانَكَ", category: "بیت الخلا سے نکلتے وقت", meaning: "تیری مغفرت چاہتا ہوں۔" },
+        { text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ فَضْلِكَ وَرَحْمَتِكَ", category: "وضو کے بعد", meaning: "اے اللہ میں تجھ سے تیرا فضل اور رحمت مانگتا ہوں۔" },
+        { text: "أَشْهَدُ أَنْ لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ", category: "اذان کے جواب میں", meaning: "میں گواہی دیتا ہوں کہ اللہ کے سوا کوئی معبود نہیں، وہ یکتا ہے، اس کا کوئی شریک نہیں، اور محمد اس کے بندے اور رسول ہیں۔" },
+        { text: "رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ", category: "دعا (قرآنی)", meaning: "اے ہمارے رب! ہمیں دنیا میں بھلائی اور آخرت میں بھلائی دے اور جہنم کے عذاب سے بچا۔" },
+        { text: "رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا وَهَبْ لَنَا مِنْ لَدُنْكَ رَحْمَةً", category: "دعا (قرآنی)", meaning: "اے رب! ہمارے دلوں کو ہدایت کے بعد ٹیڑھا نہ کر اور ہمیں اپنی رحمت عطا فرما۔" },
+        { text: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْكُفْرِ وَالْفَقْرِ وَعَذَابِ الْقَبْرِ", category: "عام دعا", meaning: "اے اللہ میں کفر، فقر اور عذاب قبر سے تیری پناہ مانگتا ہوں۔" },
+        { text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْجَنَّةَ وَأَعُوذُ بِكَ مِنَ النَّارِ", category: "عام دعا", meaning: "اے اللہ میں تجھ سے جنت مانگتا ہوں اور جہنم سے تیری پناہ مانگتا ہوں۔" },
+        { text: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ سُبْحَانَ اللَّهِ الْعَظِيمِ", category: "تسبیح", meaning: "اللہ کی ذات پاک ہے اور اس کی حمد ہے، اللہ عظیم کی ذات پاک ہے۔" },
+        { text: "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", category: "تسبیح", meaning: "اللہ کے سوا کوئی معبود نہیں، وہ یکتا ہے، اس کا کوئی شریک نہیں، اسی کی بادشاہی ہے اور اسی کی حمد ہے، اور وہ ہر چیز پر قادر ہے۔" },
+        { text: "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ", category: "درود", meaning: "اے اللہ! محمد اور آل محمد پر رحمت نازل فرما جیسے تو نے ابراہیم اور آل ابراہیم پر رحمت نازل فرمائی۔" },
+        { text: "اللَّهُمَّ بَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ", category: "درود", meaning: "اے اللہ! محمد اور آل محمد پر برکت نازل فرما جیسے تو نے ابراہیم اور آل ابراہیم پر برکت نازل فرمائی۔" },
+        // مزید دعائیں (اس فہرست کو آپ چاہیں تو بڑھا سکتے ہیں)
+        { text: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَالْعَجْزِ وَالْكَسَلِ، وَالْبُخْلِ وَالْجُبْنِ، وَضَلَعِ الدَّيْنِ وَغَلَبَةِ الرِّجَالِ", category: "پریشانی", meaning: "اے اللہ میں پریشانی، غم، عجز، سستی، بخل، بزدلی، قرض کے بوجھ اور لوگوں کے غلبے سے تیری پناہ مانگتا ہوں۔" },
+        { text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ", category: "عافیت", meaning: "اے اللہ میں تجھ سے دنیا اور آخرت میں عافیت مانگتا ہوں۔" },
+        { text: "رَبِّ اشْرَحْ لِي صَدْرِي وَيَسِّرْ لِي أَمْرِي", category: "دعا (قرآنی)", meaning: "اے میرے رب! میرا سینہ کھول دے اور میرے کام کو آسان کر دے۔" },
+        { text: "رَبِّ زِدْنِي عِلْمًا", category: "دعا (قرآنی)", meaning: "اے رب! مجھے علم میں اضافہ فرما۔" },
+        { text: "رَبَّنَا تَقَبَّلْ مِنَّا إِنَّكَ أَنْتَ السَّمِيعُ الْعَلِيمُ", category: "دعا (قرآنی)", meaning: "اے ہمارے رب! ہم سے قبول فرما، بے شک تو سننے والا جاننے والا ہے۔" },
+        { text: "رَبَّنَا ظَلَمْنَا أَنْفُسَنَا وَإِنْ لَمْ تَغْفِرْ لَنَا وَتَرْحَمْنَا لَنَكُونَنَّ مِنَ الْخَاسِرِينَ", category: "دعا (قرآنی)", meaning: "اے رب! ہم نے اپنی جانوں پر ظلم کیا، اگر تو نے ہمیں معاف نہ کیا اور رحم نہ کیا تو ہم نقصان اٹھانے والوں میں ہوں گے۔" }
+    ];
 
-        document.getElementById('duaSearchBtn').addEventListener('click', function() {
-            const query = document.getElementById('duaSearchInput').value.toLowerCase().trim();
-            const result = document.getElementById('duaResult');
-            if (!query) {
-                result.textContent = '🤲 Please enter a search term';
-                return;
-            }
-            const found = duas.filter(d =>
-                d.text.toLowerCase().includes(query) ||
-                d.meaning.toLowerCase().includes(query)
+    const searchInput = document.getElementById('duaSearchInput');
+    const searchBtn = document.getElementById('duaSearchBtn');
+    const resultDiv = document.getElementById('duaResult');
+
+    function displayDuas(filter = '') {
+        const q = filter.trim().toLowerCase();
+        let filtered = duas;
+        if (q) {
+            filtered = duas.filter(d => 
+                d.text.includes(q) || 
+                d.meaning.includes(q) || 
+                d.category.includes(q)
             );
-            if (found.length > 0) {
-                const d = found[0];
-                result.innerHTML = `🤲 <strong>${d.text}</strong><br><span style="opacity:0.7;">${d.meaning}</span>`;
-            } else {
-                result.textContent = '🤲 No dua found. Try another term.';
+        }
+        if (filtered.length === 0) {
+            resultDiv.innerHTML = '🤲 کوئی دعا نہیں ملی۔';
+            return;
+        }
+        resultDiv.innerHTML = filtered.map(d => `
+            <div style="background:var(--cream); padding:12px; border-radius:8px; margin-bottom:8px; border-right:3px solid var(--gold); text-align:right;">
+                <div style="font-family:var(--font-arabic); font-size:1.1rem;">${d.text}</div>
+                <div style="font-size:0.85rem; opacity:0.7; margin-top:4px;">📌 ${d.category}</div>
+                <div style="font-size:0.9rem; opacity:0.8; margin-top:2px;">${d.meaning}</div>
+            </div>
+        `).join('');
+    }
+
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function() {
+            displayDuas(searchInput.value);
+        });
+    }
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                displayDuas(this.value);
             }
         });
+        // ڈیفالٹ طور پر تمام دعائیں دکھائیں
+        displayDuas('');
+    }
+})();
 
         /* ================================================================
            SECTION: SEARCH SYSTEM

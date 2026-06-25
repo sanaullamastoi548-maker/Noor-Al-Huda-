@@ -1610,24 +1610,36 @@
                     <h3 data-key="tools.zakat">Zakat Calculator</h3>
                     <input type="number" id="zakatInput" placeholder="Total wealth (USD)" value="1000" />
                     <button class="btn btn-primary btn-small" id="zakatCalc" data-key="tools.calculate">Calculate Zakat</button>
-                    <div class="tool-output" id="zakatResult">$ --</div>
+                    <div class="tool-output" id="zakatResult">$ --</div>                          
                 </div>
 
-                  <!-- قبلہ فائنڈر (نیا) -->
+               /* ================================================================
+           SECTION: TOOLS — QIBLA
+           ================================================================ */                      
+              <!-- قبلہ فائنڈر (نیا، انتہائی مستحکم) -->
 <div class="tool-card glass">
     <span class="tool-icon">🧭</span>
     <h3>قبلہ فائنڈر</h3>
-    <button class="btn btn-primary btn-small" id="qiblaLocBtn">📍 میرے قبلہ کی سمت تلاش کریں</button>
-    <div class="tool-output" id="qiblaResult">-- °</div>
+    
+    <!-- خودکار طریقہ (لوکیشن یا IP) -->
+    <button class="btn btn-primary btn-small" id="qiblaAutoBtn" style="width:100%; margin-bottom:8px;">
+        📍 میرے قبلہ کی سمت تلاش کریں (خودکار)
+    </button>
+    <div class="tool-output" id="qiblaResult" style="font-size:1.8rem;">-- °</div>
+    <div id="qiblaLocationInfo" style="font-size:0.75rem; opacity:0.6; margin-bottom:8px;"></div>
+    
     <hr style="margin:12px 0; opacity:0.3;">
+    
+    <!-- دستی طریقہ -->
     <p style="font-size:0.85rem; opacity:0.7;">یا دستی طور پر شہر درج کریں:</p>
     <div style="display:flex; gap:8px; margin-top:6px;">
-        <input type="text" id="qiblaCityInput" placeholder="مثال: Makkah" style="flex:1; padding:8px 12px; border-radius:var(--radius-sm); border:1px solid #ddd; background:var(--cream);">
+        <input type="text" id="qiblaCityInput" placeholder="مثال: Makkah, Riyadh, Lahore" 
+               style="flex:1; padding:8px 12px; border-radius:var(--radius-sm); border:1px solid #ddd; background:var(--cream);">
         <button class="btn btn-small" id="qiblaCityBtn" style="padding:8px 16px; background:var(--gold); color:#000;">تلاش</button>
     </div>
-    <p style="font-size:0.7rem; opacity:0.5; margin-top:6px;">نوٹ: دستی شہر کے لیے انٹرنیٹ کنکشن درکار ہے۔</p>
+    <div id="qiblaCityStatus" style="font-size:0.75rem; opacity:0.6; margin-top:4px;"></div>
 </div>
-
+            
                 <!-- Islamic Calendar -->
                 <div class="tool-card glass">
                     <span class="tool-icon">📅</span>
@@ -2610,14 +2622,17 @@
         /* ================================================================
            SECTION: TOOLS — QIBLA
            ================================================================ */
-        // ===== قبلہ فائنڈر (نیا، لوکیشن + دستی) =====
+        
+         // ===== قبلہ فائنڈر (نیا، انتہائی مستحکم) =====
 (function() {
-    const locBtn = document.getElementById('qiblaLocBtn');
-    const result = document.getElementById('qiblaResult');
+    const resultDiv = document.getElementById('qiblaResult');
+    const infoDiv = document.getElementById('qiblaLocationInfo');
+    const cityStatus = document.getElementById('qiblaCityStatus');
+    const autoBtn = document.getElementById('qiblaAutoBtn');
     const cityInput = document.getElementById('qiblaCityInput');
     const cityBtn = document.getElementById('qiblaCityBtn');
 
-    // قبلہ کا زاویہ حساب کرنے کا فنکشن
+    // ---- قبلہ کا زاویہ حساب کرنے کا فنکشن ----
     function calculateQibla(lat, lon) {
         const m_lat = 21.4225;
         const m_lon = 39.8262;
@@ -2631,56 +2646,157 @@
         return Math.round(bearing);
     }
 
-    // لوکیشن سے قبلہ
-    if (locBtn) {
-        locBtn.addEventListener('click', function() {
+    // ---- نتیجہ دکھائیں ----
+    function showResult(bearing, locationName) {
+        resultDiv.textContent = '🧭 ' + bearing + '°';
+        if (locationName) {
+            infoDiv.textContent = '📍 ' + locationName;
+        }
+        resultDiv.style.color = 'var(--gold)';
+    }
+
+    function showError(message) {
+        resultDiv.textContent = '❌ ' + message;
+        resultDiv.style.color = '#e74c3c';
+        infoDiv.textContent = '';
+    }
+
+    function showLoading(message) {
+        resultDiv.textContent = '⏳ ' + message;
+        resultDiv.style.color = 'var(--text-muted)';
+        infoDiv.textContent = '';
+    }
+
+    // ---- طریقہ ۱: لوکیشن سے قبلہ (ترجیح) ----
+    function getLocationFromGPS() {
+        return new Promise((resolve, reject) => {
             if (!navigator.geolocation) {
-                result.textContent = '📍 آپ کا براؤزر لوکیشن سپورٹ نہیں کرتا۔';
+                reject('براؤزر لوکیشن سپورٹ نہیں کرتا');
                 return;
             }
-            result.textContent = '⏳ لوکیشن حاصل کی جا رہی ہے... براہ کرم اجازت دیں۔';
             navigator.geolocation.getCurrentPosition(
-                function(pos) {
-                    const bearing = calculateQibla(pos.coords.latitude, pos.coords.longitude);
-                    result.textContent = '🧭 ' + bearing + '°';
+                (pos) => {
+                    resolve({
+                        lat: pos.coords.latitude,
+                        lon: pos.coords.longitude,
+                        source: 'GPS'
+                    });
                 },
-                function(err) {
-                    console.warn('Geolocation error:', err);
-                    result.textContent = '❌ لوکیشن تک رسائی نہیں۔ براہ کرم اجازت دیں یا دستی شہر استعمال کریں۔';
+                (err) => {
+                    reject('لوکیشن کی اجازت نہیں یا دستیاب نہیں');
                 },
-                { enableHighAccuracy: true, timeout: 10000 }
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
             );
         });
     }
 
-    // دستی شہر سے قبلہ (Aladhan API)
+    // ---- طریقہ ۲: IP ایڈریس سے شہر (فال بیک) ----
+    function getLocationFromIP() {
+        return fetch('https://ipapi.co/json/')
+            .then(res => {
+                if (!res.ok) throw new Error('IP API ناکام');
+                return res.json();
+            })
+            .then(data => {
+                if (data.latitude && data.longitude) {
+                    return {
+                        lat: parseFloat(data.latitude),
+                        lon: parseFloat(data.longitude),
+                        source: 'IP',
+                        city: data.city || data.region || 'Unknown'
+                    };
+                }
+                throw new Error('IP سے لوکیشن نہیں ملی');
+            });
+    }
+
+    // ---- خودکار قبلہ (GPS پھر IP) ----
+    async function autoQibla() {
+        showLoading('لوکیشن حاصل کی جا رہی ہے...');
+        try {
+            // پہلے GPS آزمائیں
+            let loc = await getLocationFromGPS();
+            const bearing = calculateQibla(loc.lat, loc.lon);
+            showResult(bearing, 'آپ کا موجودہ مقام (GPS)');
+            return;
+        } catch (gpsError) {
+            console.warn('GPS ناکام:', gpsError);
+            // پھر IP آزمائیں
+            try {
+                let loc = await getLocationFromIP();
+                const bearing = calculateQibla(loc.lat, loc.lon);
+                showResult(bearing, loc.city + ' (IP کے ذریعے)');
+                return;
+            } catch (ipError) {
+                console.warn('IP ناکام:', ipError);
+                showError('لوکیشن تک رسائی نہیں۔ براہ کرم دستی شہر استعمال کریں۔');
+            }
+        }
+    }
+
+    // ---- دستی شہر سے قبلہ (Aladhan API) ----
+    async function cityQibla(cityName) {
+        if (!cityName || cityName.trim().length < 2) {
+            cityStatus.textContent = '⚠️ براہ کرم درست شہر کا نام لکھیں۔';
+            return;
+        }
+        cityStatus.textContent = '⏳ شہر کے کوآرڈینیٹس حاصل کیے جا رہے...';
+        showLoading('شہر تلاش کیا جا رہا ہے...');
+
+        try {
+            // Aladhan API سے شہر کے کوآرڈینیٹس حاصل کریں
+            const url = `https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(cityName.trim())}&country=&method=2`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data && data.data && data.data.meta) {
+                const meta = data.data.meta;
+                if (meta.latitude && meta.longitude) {
+                    const lat = parseFloat(meta.latitude);
+                    const lon = parseFloat(meta.longitude);
+                    const bearing = calculateQibla(lat, lon);
+                    showResult(bearing, cityName.trim() + ' (دستی)');
+                    cityStatus.textContent = '✅ کامیاب!';
+                    cityStatus.style.color = 'green';
+                    return;
+                }
+            }
+            // اگر کوآرڈینیٹس نہ ملیں
+            cityStatus.textContent = '❌ شہر نہیں ملا۔ درست نام لکھیں (مثال: Makkah, Riyadh, Lahore)';
+            cityStatus.style.color = 'red';
+            showError('شہر نہیں ملا');
+        } catch (error) {
+            console.error('City API error:', error);
+            cityStatus.textContent = '❌ انٹرنیٹ کنکشن کی خرابی یا شہر نہیں ملا۔';
+            cityStatus.style.color = 'red';
+            showError('انٹرنیٹ کنکشن کی خرابی');
+        }
+    }
+
+    // ---- ایونٹس ----
+    if (autoBtn) {
+        autoBtn.addEventListener('click', autoQibla);
+    }
+
     if (cityBtn && cityInput) {
         cityBtn.addEventListener('click', function() {
-            const city = cityInput.value.trim();
-            if (!city) {
-                alert('براہ کرم شہر کا نام لکھیں۔');
-                return;
+            cityQibla(cityInput.value);
+        });
+        cityInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                cityQibla(this.value);
             }
-            result.textContent = '⏳ شہر کے کوآرڈینیٹس حاصل کیے جا رہے...';
-            fetch(`https://api.aladhan.com/v1/current?city=${encodeURIComponent(city)}&country=SA&method=2`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.data && data.data.meta && data.data.meta.latitude) {
-                        const lat = data.data.meta.latitude;
-                        const lon = data.data.meta.longitude;
-                        const bearing = calculateQibla(lat, lon);
-                        result.textContent = '🧭 ' + bearing + '° (شہر: ' + city + ')';
-                    } else {
-                        result.textContent = '❌ شہر نہیں ملا۔ درست نام لکھیں (مثال: Makkah, Riyadh)';
-                    }
-                })
-                .catch(() => {
-                    result.textContent = '❌ انٹرنیٹ کنکشن کی خرابی۔';
-                });
         });
     }
+
+    // ---- صفحہ لوڈ ہوتے ہی خودکار قبلہ آزمائیں ----
+    setTimeout(() => {
+        autoQibla();
+    }, 500);
+
+    // ---- صارف کو بتائیں کہ کیا ہو رہا ہے ----
+    console.log('🧭 قبلہ فائنڈر لوڈ ہو گیا۔ خودکار تلاش شروع ہو رہی ہے...');
 })();
-         
         /* ================================================================
            SECTION: TOOLS — ISLAMIC CALENDAR
            ================================================================ */
